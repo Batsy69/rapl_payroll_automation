@@ -1,0 +1,16 @@
+{
+  "doctype": "Page",
+  "name": "payroll-automation-dashboard",
+  "module": "RAPL Payroll Automation",
+  "title": "Payroll Automation Dashboard",
+  "page_name": "payroll-automation-dashboard",
+  "standard": "Yes",
+  "roles": [
+    {
+      "role": "HR Manager"
+    },
+    {
+      "role": "System Manager"
+    }
+  ]
+}
