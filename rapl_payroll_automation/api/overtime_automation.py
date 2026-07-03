@@ -24,7 +24,7 @@
 #                    child table so a 3rd grade just needs a new settings row)
 
 import frappe
-from frappe.utils import flt, getdate
+from frappe.utils import flt, getdate, get_datetime
 
 from rapl_payroll_automation.api.payroll_automation_utils import (
 	additional_salary_already_exists,
@@ -102,6 +102,13 @@ def _compute_employee_overtime(emp, start_date, end_date, settings, errors):
 		try:
 			if not day.in_time or not day.out_time:
 				continue  # incomplete day, silently skipped (surfaced separately by pre-flight check)
+
+			# Defensive cast (frappe.get_all() usually returns proper datetime
+			# objects already, but this matches the same fix applied in
+			# attendance_automation.py after a confirmed 'str' vs 'datetime'
+			# TypeError there -- cheap to guard here too).
+			day.in_time = get_datetime(day.in_time)
+			day.out_time = get_datetime(day.out_time)
 
 			if day.attendance_date in all_holidays:
 				# Sunday/holiday: full raw span, no break deduction, no threshold

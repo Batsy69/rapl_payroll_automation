@@ -33,7 +33,7 @@
 # a double-deduction against payment_days (see payroll_automation_utils.py
 # docstring and the Settings doctype's validate_half_day_leave_type()).
 
-from frappe.utils import getdate
+from frappe.utils import getdate, get_datetime
 import frappe
 
 from rapl_payroll_automation.api.payroll_automation_utils import (
@@ -57,6 +57,15 @@ def apply_attendance_deduction_logic(doc, method):
 	# --- Guard 2: no check-in data at all (Absent, or genuinely not yet arrived) ---
 	if not doc.in_time:
 		return
+
+	# doc.in_time/out_time can arrive as plain strings (not yet cast to
+	# datetime) on a fresh, client-submitted document at this point in the
+	# save lifecycle -- confirmed via a real TypeError in production
+	# ('str' - 'datetime.datetime'). get_datetime() is idempotent: safe to
+	# call whether the value is already a datetime or still a string.
+	doc.in_time = get_datetime(doc.in_time)
+	if doc.out_time:
+		doc.out_time = get_datetime(doc.out_time)
 
 	settings = get_automation_settings()
 
