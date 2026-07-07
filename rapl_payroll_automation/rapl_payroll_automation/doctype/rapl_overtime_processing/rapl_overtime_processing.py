@@ -54,25 +54,31 @@ class RAPLOvertimeProcessing(Document):
 
 
 @frappe.whitelist()
-def get_employees(docname, all_employees=False):
+def get_employees(docname, all_employees=False, employees=None):
 	"""
 	Populates the `entries` child table on a RAPL Overtime Processing document.
 
-	all_employees=False (default): only employees with (a) Present attendance
-	  in the period AND (b) Employee.custom_ot = 1 -- the actual OT-eligible
-	  workforce, matching the design decision that OT eligibility is gated by
-	  this explicit Employee-level flag, not just attendance presence.
-	all_employees=True: every active Employee, regardless of attendance or
-	  custom_ot -- for the "add everyone, decide manually" case.
+	Three mutually exclusive modes (checked in this priority order):
+	  1. `employees` given (list of Employee IDs, from the manual multi-select
+	     picker) -- use exactly this list, no other filter applied.
+	  2. all_employees=True -- every active Employee, regardless of attendance
+	     or custom_ot.
+	  3. all_employees=False (default), employees=None -- only employees with
+	     (a) Present attendance in the period AND (b) Employee.custom_ot = 1 --
+	     the actual OT-eligible workforce.
 	"""
 	doc = frappe.get_doc("RAPL Overtime Processing", docname)
 	settings = get_automation_settings()
 	start_date, end_date = doc.start_date, doc.end_date
 
+	if isinstance(employees, str):
+		employees = frappe.parse_json(employees)
 	if isinstance(all_employees, str):
 		all_employees = all_employees.lower() in ("1", "true", "yes")
 
-	if all_employees:
+	if employees:
+		employees = list(employees)  # explicit manual selection -- use as-is, no filtering
+	elif all_employees:
 		employees = frappe.get_all("Employee", filters={"status": "Active"}, pluck="name")
 	else:
 		attendance_employees = set(

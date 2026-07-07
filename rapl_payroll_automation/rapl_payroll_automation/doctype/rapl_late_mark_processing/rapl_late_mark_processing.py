@@ -37,20 +37,29 @@ class RAPLLateMarkProcessing(Document):
 
 
 @frappe.whitelist()
-def get_employees(docname, all_employees=False):
+def get_employees(docname, all_employees=False, employees=None):
 	"""
-	all_employees=False: employees with any submitted Attendance in the period
-	  (matches the existing Late Mark automation's own listing criteria).
-	all_employees=True: every active Employee, regardless of attendance.
+	Three mutually exclusive modes (checked in this priority order):
+	  1. `employees` given (list of Employee IDs, from the manual multi-select
+	     picker) -- use exactly this list, no other filter applied.
+	  2. all_employees=True -- every active Employee, regardless of attendance.
+	  3. all_employees=False (default), employees=None -- employees with any
+	     submitted Attendance in the period (no other gate -- unlike Overtime,
+	     Late Mark has no equivalent of custom_ot; presence of Attendance is
+	     the only automatic criterion).
 	"""
 	doc = frappe.get_doc("RAPL Late Mark Processing", docname)
 	settings = get_automation_settings()
 	start_date, end_date = doc.start_date, doc.end_date
 
+	if isinstance(employees, str):
+		employees = frappe.parse_json(employees)
 	if isinstance(all_employees, str):
 		all_employees = all_employees.lower() in ("1", "true", "yes")
 
-	if all_employees:
+	if employees:
+		employees = list(employees)
+	elif all_employees:
 		employees = frappe.get_all("Employee", filters={"status": "Active"}, pluck="name")
 	else:
 		employees = sorted(

@@ -22,6 +22,38 @@ frappe.ui.form.on("RAPL Overtime Processing", {
 				() => get_employees(frm, true)
 			);
 		});
+
+		frm.add_custom_button(__("Select Employees Manually"), () => {
+			new frappe.ui.form.MultiSelectDialog({
+				doctype: "Employee",
+				target: frm,
+				setters: {
+					department: undefined,
+					grade: undefined,
+				},
+				get_query() {
+					return { filters: { status: "Active" } };
+				},
+				action(selections) {
+					if (!selections || !selections.length) return;
+					if (!frm.doc.start_date || !frm.doc.end_date) {
+						frappe.msgprint(__("Set From Date and To Date first, then save, before selecting employees."));
+						return;
+					}
+					if (frm.is_dirty()) {
+						frappe.msgprint(__("Save the document first, then use Select Employees Manually again."));
+						return;
+					}
+					frappe.call({
+						method: "rapl_payroll_automation.rapl_payroll_automation.doctype.rapl_overtime_processing.rapl_overtime_processing.get_employees",
+						args: { docname: frm.doc.name, employees: selections },
+						freeze: true,
+						freeze_message: __("Adding selected employees..."),
+						callback: () => frm.reload_doc(),
+					});
+				},
+			});
+		});
 	},
 });
 
