@@ -28,6 +28,7 @@ frappe.ui.form.on("RAPL Late Mark Processing", {
 				doctype: "Employee",
 				target: frm,
 				setters: {
+					employee_name: undefined,
 					department: undefined,
 					grade: undefined,
 				},
@@ -40,8 +41,8 @@ frappe.ui.form.on("RAPL Late Mark Processing", {
 						frappe.msgprint(__("Set From Date and To Date first, then save, before selecting employees."));
 						return;
 					}
-					if (frm.is_dirty()) {
-						frappe.msgprint(__("Save the document first, then use Select Employees Manually again."));
+					if (frm.is_new()) {
+						frappe.msgprint(__("Save the document once (with dates set) before selecting employees."));
 						return;
 					}
 					frappe.call({
@@ -58,8 +59,8 @@ frappe.ui.form.on("RAPL Late Mark Processing", {
 });
 
 function get_employees(frm, all_employees) {
-	if (frm.is_dirty()) {
-		frappe.msgprint(__("Save the document first (so the period is stored), then click Get Employees again."));
+	if (frm.is_new()) {
+		frappe.msgprint(__("Save the document once (with dates set) before fetching employees."));
 		return;
 	}
 	frappe.call({

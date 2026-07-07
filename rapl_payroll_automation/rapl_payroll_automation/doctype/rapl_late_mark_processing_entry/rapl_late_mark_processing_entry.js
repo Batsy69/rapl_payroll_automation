@@ -12,8 +12,8 @@ frappe.ui.form.on("RAPL Late Mark Processing Entry", {
 			frappe.msgprint(__("Set From Date and To Date on the parent document first, then save, before adding rows."));
 			return;
 		}
-		if (frm.is_dirty()) {
-			frappe.msgprint(__("Save the document first, then the newly added row will auto-fetch Late Mark details."));
+		if (frm.is_new()) {
+			frappe.msgprint(__("Save the document once (with dates set) before adding rows -- a new row needs a saved parent to fetch Late Mark details against."));
 			return;
 		}
 		frappe.call({
