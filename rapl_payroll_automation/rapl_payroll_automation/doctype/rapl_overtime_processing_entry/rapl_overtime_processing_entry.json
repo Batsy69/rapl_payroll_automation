@@ -1,0 +1,79 @@
+{
+  "doctype": "DocType",
+  "name": "RAPL Overtime Processing Entry",
+  "module": "RAPL Payroll Automation",
+  "istable": 1,
+  "editable_grid": 1,
+  "engine": "InnoDB",
+  "field_order": [
+    "employee",
+    "employee_name",
+    "grade",
+    "ot_hours",
+    "ot_rate",
+    "column_break_amt",
+    "amount",
+    "additional_salary"
+  ],
+  "fields": [
+    {
+      "fieldname": "employee",
+      "fieldtype": "Link",
+      "label": "Employee",
+      "options": "Employee",
+      "reqd": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "employee_name",
+      "fieldtype": "Data",
+      "label": "Employee Name",
+      "fetch_from": "employee.employee_name",
+      "read_only": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "grade",
+      "fieldtype": "Data",
+      "label": "Grade",
+      "fetch_from": "employee.grade",
+      "read_only": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "ot_hours",
+      "fieldtype": "Float",
+      "label": "OT Hours (computed)",
+      "read_only": 1,
+      "in_list_view": 1,
+      "description": "Reference only, from the automatic calculation. Editing this does NOT change Amount -- edit Amount directly."
+    },
+    {
+      "fieldname": "ot_rate",
+      "fieldtype": "Currency",
+      "label": "Rate/hr (computed)",
+      "read_only": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "column_break_amt",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "amount",
+      "fieldtype": "Currency",
+      "label": "Amount",
+      "reqd": 1,
+      "in_list_view": 1,
+      "description": "This is the ONLY field that determines the Additional Salary amount. Fully editable -- overwrite the computed value freely, or leave as-is."
+    },
+    {
+      "fieldname": "additional_salary",
+      "fieldtype": "Link",
+      "label": "Additional Salary (after processing)",
+      "options": "Additional Salary",
+      "read_only": 1
+    }
+  ],
+  "permissions": []
+}

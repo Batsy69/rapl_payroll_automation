@@ -34,9 +34,15 @@ rationale and every decision this app implements.
 - **PF/PT/ESI fix**: pre-fetches Overtime + Conveyance totals (which arrive
   via Additional Salary, invisible to Salary Structure formulas otherwise)
   so these three statutory deductions calculate correctly.
-- **Dashboard**: user-initiated (never scheduled), pre-flight data check,
-  editable preview before anything is created, then bulk-creates Additional
-  Salary records.
+- **Processing**: two submittable documents -- **RAPL Overtime Processing**
+  and **RAPL Late Mark Processing** -- each user-initiated (never
+  scheduled). Set a period, click "Get Employees" (eligible only, or "Get
+  All Employees" for everyone), freely add/remove/edit rows using the
+  native Frappe grid, then Submit to create the Additional Salary records.
+  (An earlier hand-rolled Dashboard Page was replaced by these -- a raw
+  custom Page can't cheaply replicate proper add/remove/bulk-edit behavior;
+  a submittable doctype with a child table gets all of that for free from
+  the framework, same pattern as Payroll Entry/Overtime Slip.)
 
 All specific band times, fractions, thresholds, and the Grade-denominator
 mapping are configurable via **RAPL Payroll Automation Settings**
@@ -56,6 +62,11 @@ adjust a rule.
    | Field | Type |
    |---|---|
    | `custom_late_deduction_fraction` | Float |
+   | `custom_ot` (on **Employee**, not Attendance) | Check |
+
+   `custom_ot` gates Overtime eligibility directly -- only employees with
+   this ticked (and attendance in the period) are pulled in by "Get
+   Employees (Eligible Only)" on RAPL Overtime Processing.
 
    (The two Salary Slip custom fields -- `custom_overtime_for_pt` and
    `custom_conveyance_for_deductions` -- should already exist if you followed
@@ -116,16 +127,18 @@ adjust a rule.
 rapl_payroll_automation/
 ├── doctype/
 │   ├── rapl_payroll_automation_settings/   (Single -- all configurable rules)
-│   └── rapl_grade_ot_denominator_rule/     (child table -- Grade -> denominator rule)
-├── api/
-│   ├── payroll_automation_utils.py         (shared helpers)
-│   ├── attendance_automation.py            (Late Mark / Half Day / Early Exit)
-│   ├── salary_slip_hooks.py                (PF/PT/ESI visibility fix)
-│   ├── overtime_automation.py              (Overtime bulk preview + process)
-│   ├── late_mark_automation.py             (Late Mark bulk preview + process)
-│   └── payroll_preflight_check.py          (pre-flight data quality check)
-└── page/
-    └── payroll_automation_dashboard/       (user-facing dashboard)
+│   ├── rapl_grade_ot_denominator_rule/     (child table -- Grade -> denominator rule)
+│   ├── rapl_overtime_processing/           (submittable -- Overtime review & processing)
+│   ├── rapl_overtime_processing_entry/     (child table -- editable OT rows)
+│   ├── rapl_late_mark_processing/          (submittable -- Late Mark review & processing)
+│   └── rapl_late_mark_processing_entry/    (child table -- editable Late Mark rows)
+└── api/
+    ├── payroll_automation_utils.py         (shared helpers)
+    ├── attendance_automation.py            (Late Mark / Half Day / Early Exit)
+    ├── salary_slip_hooks.py                (PF/PT/ESI visibility fix)
+    ├── overtime_automation.py              (legacy calc helpers, reused by the doctype above)
+    ├── late_mark_automation.py             (legacy calc helpers, reused by the doctype above)
+    └── payroll_preflight_check.py          (pre-flight data quality check, callable manually)
 ```
 
 ## Important caveat
