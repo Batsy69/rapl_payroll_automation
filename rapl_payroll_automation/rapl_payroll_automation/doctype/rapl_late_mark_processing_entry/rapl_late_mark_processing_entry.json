@@ -54,7 +54,6 @@
       "fieldname": "amount",
       "fieldtype": "Currency",
       "label": "Amount",
-      "reqd": 1,
       "in_list_view": 1,
       "description": "Auto-recalculated from Fraction Total \u00d7 Per-Day Rate whenever either changes. You can also edit Amount directly -- doing so does NOT change Fraction Total/Per-Day Rate back (one-way)."
     },

@@ -68,6 +68,30 @@ class RAPLOvertimeProcessing(Document):
 
 
 @frappe.whitelist()
+def get_employee_ot_details(docname, employee):
+	"""
+	Computes OT Hours/Rate/Amount for ONE employee, used by the child table's
+	own client script (rapl_overtime_processing_entry.js) when a row is added
+	via the native grid's own "Add Row" -- not through "Select Employees
+	Manually" or either "Get Employees" button, which already compute this
+	via get_employees() above. Without this, a row added the native-grid way
+	had Employee set but nothing else auto-populated.
+	"""
+	doc = frappe.get_doc("RAPL Overtime Processing", docname)
+	settings = get_automation_settings()
+	errors = []
+	result = _compute_employee_overtime(employee, doc.start_date, doc.end_date, settings, errors)
+	if not result:
+		return {"ot_hours": 0, "ot_rate": 0, "ot_amount": 0, "errors": errors}
+	return {
+		"ot_hours": result["ot_hours"],
+		"ot_rate": result["ot_rate"],
+		"ot_amount": result["ot_amount"],
+		"errors": errors,
+	}
+
+
+@frappe.whitelist()
 def get_employees(docname, all_employees=False, employees=None):
 	"""
 	Populates the `entries` child table on a RAPL Overtime Processing document.
@@ -111,9 +135,16 @@ def get_employees(docname, all_employees=False, employees=None):
 		)
 		employees = sorted(attendance_employees & ot_eligible_employees)
 
-	doc.entries = []
+	# Preserve any existing rows (manual additions/edits, or a previous
+	# "Get Employees" run) -- only append rows for employees NOT already
+	# present. Previously this did `doc.entries = []` unconditionally,
+	# which silently destroyed manual entries every time any "Get
+	# Employees" button was clicked again. Fixed.
+	existing_employees = {row.employee for row in doc.entries}
 	errors = []
 	for emp in employees:
+		if emp in existing_employees:
+			continue  # already in the table (manual or previous fetch) -- don't touch it
 		if additional_salary_already_exists(emp, settings.overtime_salary_component, end_date):
 			errors.append(f"{emp}: already processed for this period, excluded")
 			continue

@@ -62,7 +62,6 @@
       "fieldname": "amount",
       "fieldtype": "Currency",
       "label": "Amount",
-      "reqd": 1,
       "in_list_view": 1,
       "description": "Auto-recalculated from OT Hours \u00d7 Rate/hr whenever either changes. You can also edit Amount directly -- doing so does NOT change OT Hours/Rate back (one-way: hours/rate drive Amount, not the reverse)."
     },

@@ -80,42 +80,30 @@ def get_employees(docname, all_employees=False, employees=None):
 			)
 		)
 
-	doc.entries = []
+	# Preserve any existing rows (manual additions/edits, or a previous
+	# "Get Employees" run) -- only append rows for employees NOT already
+	# present. Previously this did `doc.entries = []` unconditionally,
+	# which silently destroyed manual entries every time any "Get
+	# Employees" button was clicked again. Fixed.
+	existing_employees = {row.employee for row in doc.entries}
 	errors = []
 	working_days = get_total_working_days(start_date, end_date)
 
 	for emp in employees:
+		if emp in existing_employees:
+			continue  # already in the table (manual or previous fetch) -- don't touch it
 		if additional_salary_already_exists(emp, settings.late_mark_salary_component, end_date):
 			errors.append(f"{emp}: already processed for this period, excluded")
 			continue
 
-		monthly_salary = frappe.db.get_value("Employee", emp, "custom_monthly_salary")
+		result, err = _compute_employee_late_mark_details(emp, start_date, end_date, working_days)
 		row = doc.append("entries", {})
 		row.employee = emp
-
-		if not monthly_salary:
-			errors.append(f"{emp}: missing custom_monthly_salary, added with 0 (edit manually)")
-			row.late_fraction_total = 0
-			row.per_day_rate = 0
-			row.amount = 0
-			continue
-
-		total_fraction = frappe.db.sql(
-			"""
-			SELECT COALESCE(SUM(custom_late_deduction_fraction), 0)
-			FROM `tabAttendance`
-			WHERE employee = %(employee)s
-				AND attendance_date BETWEEN %(start)s AND %(end)s
-				AND docstatus = 1
-			""",
-			{"employee": emp, "start": start_date, "end": end_date},
-		)[0][0]
-		total_fraction = flt(total_fraction)
-		per_day_rate = flt(monthly_salary) / working_days
-
-		row.late_fraction_total = round(total_fraction, 4)
-		row.per_day_rate = round(per_day_rate, 2)
-		row.amount = round(total_fraction * per_day_rate, 2)
+		if err:
+			errors.append(err)
+		row.late_fraction_total = result["late_fraction_total"]
+		row.per_day_rate = result["per_day_rate"]
+		row.amount = result["amount"]
 
 	doc.save()
 
@@ -123,3 +111,56 @@ def get_employees(docname, all_employees=False, employees=None):
 		frappe.msgprint("<br>".join(errors), indicator="orange", title=_("Get Employees -- Notes"))
 
 	return doc.name
+
+
+def _compute_employee_late_mark_details(employee, start_date, end_date, working_days):
+	"""Shared calculation, used both by bulk get_employees() and the
+	single-employee get_employee_late_mark_details() (for rows added via the
+	native grid's own Add Row, not through Get Employees/manual select)."""
+	monthly_salary = frappe.db.get_value("Employee", employee, "custom_monthly_salary")
+	if not monthly_salary:
+		return (
+			{"late_fraction_total": 0, "per_day_rate": 0, "amount": 0},
+			f"{employee}: missing custom_monthly_salary, added with 0 (edit manually)",
+		)
+
+	total_fraction = frappe.db.sql(
+		"""
+		SELECT COALESCE(SUM(custom_late_deduction_fraction), 0)
+		FROM `tabAttendance`
+		WHERE employee = %(employee)s
+			AND attendance_date BETWEEN %(start)s AND %(end)s
+			AND docstatus = 1
+		""",
+		{"employee": employee, "start": start_date, "end": end_date},
+	)[0][0]
+	total_fraction = flt(total_fraction)
+	per_day_rate = flt(monthly_salary) / working_days
+
+	return (
+		{
+			"late_fraction_total": round(total_fraction, 4),
+			"per_day_rate": round(per_day_rate, 2),
+			"amount": round(total_fraction * per_day_rate, 2),
+		},
+		None,
+	)
+
+
+@frappe.whitelist()
+def get_employee_late_mark_details(docname, employee):
+	"""
+	Computes Fraction Total/Per-Day Rate/Amount for ONE employee, used by the
+	child table's own client script when a row is added via the native
+	grid's own "Add Row" -- without this, such a row had Employee set but
+	nothing else auto-populated.
+	"""
+	doc = frappe.get_doc("RAPL Late Mark Processing", docname)
+	working_days = get_total_working_days(doc.start_date, doc.end_date)
+	result, err = _compute_employee_late_mark_details(employee, doc.start_date, doc.end_date, working_days)
+	return {
+		"late_fraction_total": result["late_fraction_total"],
+		"per_day_rate": result["per_day_rate"],
+		"amount": result["amount"],
+		"errors": [err] if err else [],
+	}
