@@ -43,17 +43,16 @@
     {
       "fieldname": "ot_hours",
       "fieldtype": "Float",
-      "label": "OT Hours (computed)",
-      "read_only": 1,
+      "label": "OT Hours",
       "in_list_view": 1,
-      "description": "Reference only, from the automatic calculation. Editing this does NOT change Amount -- edit Amount directly."
+      "description": "Editable. Changing this recalculates Amount = OT Hours \u00d7 Rate/hr automatically."
     },
     {
       "fieldname": "ot_rate",
       "fieldtype": "Currency",
-      "label": "Rate/hr (computed)",
-      "read_only": 1,
-      "in_list_view": 1
+      "label": "Rate/hr",
+      "in_list_view": 1,
+      "description": "Editable. Changing this recalculates Amount = OT Hours \u00d7 Rate/hr automatically."
     },
     {
       "fieldname": "column_break_amt",
@@ -65,7 +64,7 @@
       "label": "Amount",
       "reqd": 1,
       "in_list_view": 1,
-      "description": "This is the ONLY field that determines the Additional Salary amount. Fully editable -- overwrite the computed value freely, or leave as-is."
+      "description": "Auto-recalculated from OT Hours \u00d7 Rate/hr whenever either changes. You can also edit Amount directly -- doing so does NOT change OT Hours/Rate back (one-way: hours/rate drive Amount, not the reverse)."
     },
     {
       "fieldname": "additional_salary",

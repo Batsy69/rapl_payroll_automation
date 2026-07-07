@@ -3,7 +3,8 @@
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import flt
+from frappe.model.naming import append_number_if_name_exists
+from frappe.utils import flt, getdate
 
 from rapl_payroll_automation.api.payroll_automation_utils import (
 	additional_salary_already_exists,
@@ -14,6 +15,13 @@ from rapl_payroll_automation.api.payroll_automation_utils import (
 
 
 class RAPLLateMarkProcessing(Document):
+	def autoname(self):
+		"""Same pattern as RAPL Overtime Processing -- e.g. "May 2026 - Late Mark",
+		with automatic "-1"/"-2" suffixing for a second document in the same month."""
+		if not self.start_date:
+			frappe.throw(_("Set Start Date before saving (required to generate the name)."))
+		base_name = getdate(self.start_date).strftime("%B %Y") + " - Late Mark"
+		self.name = append_number_if_name_exists("RAPL Late Mark Processing", base_name, separator="-")
 	def on_submit(self):
 		settings = get_automation_settings()
 		errors = []

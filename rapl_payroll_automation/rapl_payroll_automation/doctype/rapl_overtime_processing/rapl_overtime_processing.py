@@ -14,6 +14,7 @@
 import frappe
 from frappe import _
 from frappe.model.document import Document
+from frappe.model.naming import append_number_if_name_exists
 
 from rapl_payroll_automation.api.payroll_automation_utils import (
 	additional_salary_already_exists,
@@ -27,10 +28,23 @@ from rapl_payroll_automation.api.payroll_automation_utils import (
 )
 from rapl_payroll_automation.api.overtime_automation import get_attendance_for_employee
 from erpnext.setup.doctype.employee.employee import get_holiday_list_for_employee
-from frappe.utils import flt, get_datetime
+from frappe.utils import flt, get_datetime, getdate
 
 
 class RAPLOvertimeProcessing(Document):
+	def autoname(self):
+		"""
+		Name from the document's own start_date -- e.g. "May 2026 - Overtime".
+		A second document for the same month gets "-1", "-2" etc. appended
+		automatically (via append_number_if_name_exists, the same utility
+		Frappe itself uses for this exact collision case) -- so multiple
+		Overtime Processing documents for one month are fully supported,
+		not blocked or silently overwritten.
+		"""
+		if not self.start_date:
+			frappe.throw(_("Set Start Date before saving (required to generate the name)."))
+		base_name = getdate(self.start_date).strftime("%B %Y") + " - Overtime"
+		self.name = append_number_if_name_exists("RAPL Overtime Processing", base_name, separator="-")
 	def on_submit(self):
 		settings = get_automation_settings()
 		errors = []

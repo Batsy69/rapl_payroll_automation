@@ -3,7 +3,7 @@
   "name": "RAPL Late Mark Processing",
   "module": "RAPL Payroll Automation",
   "is_submittable": 1,
-  "autoname": "format:LM-PROC-.#####",
+  "autoname": "autoname",
   "engine": "InnoDB",
   "field_order": [
     "start_date",

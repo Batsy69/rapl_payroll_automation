@@ -34,18 +34,17 @@
     {
       "fieldname": "late_fraction_total",
       "fieldtype": "Float",
-      "label": "Fraction Total (computed)",
+      "label": "Fraction Total",
       "precision": "4",
-      "read_only": 1,
       "in_list_view": 1,
-      "description": "Reference only. Editing this does NOT change Amount -- edit Amount directly."
+      "description": "Editable. Changing this recalculates Amount = Fraction Total \u00d7 Per-Day Rate automatically."
     },
     {
       "fieldname": "per_day_rate",
       "fieldtype": "Currency",
-      "label": "Per-Day Rate (computed)",
-      "read_only": 1,
-      "in_list_view": 1
+      "label": "Per-Day Rate",
+      "in_list_view": 1,
+      "description": "Editable. Changing this recalculates Amount = Fraction Total \u00d7 Per-Day Rate automatically."
     },
     {
       "fieldname": "column_break_amt",
@@ -57,7 +56,7 @@
       "label": "Amount",
       "reqd": 1,
       "in_list_view": 1,
-      "description": "This is the ONLY field that determines the Additional Salary amount."
+      "description": "Auto-recalculated from Fraction Total \u00d7 Per-Day Rate whenever either changes. You can also edit Amount directly -- doing so does NOT change Fraction Total/Per-Day Rate back (one-way)."
     },
     {
       "fieldname": "additional_salary",
