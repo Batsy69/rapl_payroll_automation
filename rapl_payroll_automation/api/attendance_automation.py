@@ -14,17 +14,28 @@
 # employee_checkin.py's create_or_update_attendance/mark_attendance_and_link_log).
 #
 # Rules implemented (all confirmed with the user across extensive design discussion):
-#   09:30-09:45  grace, no deduction
-#   09:46-10:00  1/6 day deduction (custom Additional Salary, via bulk function)
-#   10:01-10:34  1/4 day deduction (custom Additional Salary, via bulk function)
-#   10:35+       Half Day (native mechanism -- status="Half Day", half_day_status="Absent")
-#   checkout before 17:00  ALSO Half Day (stacks additively with any late-arrival fraction)
+#   Bands are now fully configurable via RAPL Payroll Automation Settings'
+#   "Late Mark Bands" table (label, from_time, to_time, fraction) -- no
+#   longer hardcoded. A check-in before the earliest band's From Time is
+#   grace (no deduction). A check-in after every band's latest To Time
+#   triggers native Half Day. A check-in within a band's [from_time, to_time]
+#   sets custom_late_mark_band to that band's Label (replacing the old
+#   custom_late_deduction_fraction float -- see rewrite note below).
+#   checkout before 17:00  ALSO Half Day (stacks additively with any late-arrival band)
 #
 # Native Half Day mechanism verified: get_half_absent_days() + payment_days
 # reduction via Fraction of Daily Salary for Half Day (0.500) already delivers
 # exactly a half-day pay cut through existing `Depends on Payment Days`
-# proration -- no custom deduction component needed for the two Half Day
-# triggers, only for the two fractional bands.
+# proration -- no custom deduction component needed for the Half Day
+# triggers, only for the fractional bands.
+#
+# REWRITE NOTE: custom_late_deduction_fraction (a bare float) has been
+# replaced by custom_late_mark_band (Data -- stores the matched band's
+# Label). This is necessary to support per-band COUNTING in RAPL Late Mark
+# Processing (e.g. "2 occurrences in the 9:46-10:00 band") rather than just
+# summing a single fraction value -- a bare number can't identify WHICH band
+# a day belonged to. The old field is left in place, untouched, on any
+# historical records; it is simply no longer written to or read from.
 #
 # leave_type is MANDATORY whenever status is Half Day/On Leave (verified:
 # mandatory_depends_on on the Attendance doctype). We use a dedicated Leave
@@ -33,13 +44,13 @@
 # a double-deduction against payment_days (see payroll_automation_utils.py
 # docstring and the Settings doctype's validate_half_day_leave_type()).
 
-from frappe.utils import getdate, get_datetime
-import frappe
+from frappe.utils import get_datetime
 
 from rapl_payroll_automation.api.payroll_automation_utils import (
 	get_all_holiday_dates,
 	get_automation_settings,
 	get_datetime_combine,
+	time_to_seconds,
 )
 from erpnext.setup.doctype.employee.employee import get_holiday_list_for_employee
 
@@ -78,29 +89,28 @@ def apply_attendance_deduction_logic(doc, method):
 	if get_all_holiday_dates(holiday_list, doc.attendance_date, doc.attendance_date):
 		return
 
-	shift = frappe.get_cached_doc("Shift Type", settings.reference_shift_type)
-	shift_start = get_datetime_combine(doc.attendance_date, shift.start_time)
-
-	minutes_late = (doc.in_time - shift_start).total_seconds() / 60
-
 	# Reset our own field every run so re-validation (e.g. amend) recomputes cleanly
-	doc.custom_late_deduction_fraction = 0
+	doc.custom_late_mark_band = None
 	is_half_day = False
 
-	grace_minutes = _time_diff_minutes(shift.start_time, settings.late_mark_grace_until)
-	band1_minutes = _time_diff_minutes(shift.start_time, settings.late_mark_band1_until)
-	band2_minutes = _time_diff_minutes(shift.start_time, settings.late_mark_band2_until)
+	check_in_seconds = time_to_seconds(doc.in_time.time())
+	bands = sorted(settings.late_mark_bands, key=lambda r: time_to_seconds(r.from_time))
 
-	if minutes_late <= grace_minutes:
-		pass  # grace period, no deduction
-	elif minutes_late <= band1_minutes:
-		doc.custom_late_deduction_fraction = settings.late_mark_band1_fraction
-	elif minutes_late <= band2_minutes:
-		doc.custom_late_deduction_fraction = settings.late_mark_band2_fraction
-	else:
-		is_half_day = True  # 10:35+ arrival (or configured equivalent)
+	matched_band = None
+	for band in bands:
+		from_s = time_to_seconds(band.from_time)
+		to_s = time_to_seconds(band.to_time)
+		if from_s <= check_in_seconds <= to_s:
+			matched_band = band
+			break
 
-	# --- Early exit check -- stacks additively with any late-arrival fraction above ---
+	if matched_band:
+		doc.custom_late_mark_band = matched_band.label
+	elif bands and check_in_seconds > time_to_seconds(bands[-1].to_time):
+		is_half_day = True  # later than every defined band -- native Half Day
+	# else: earlier than the first band's From Time -- grace, no deduction
+
+	# --- Early exit check -- stacks additively with any late-arrival band above ---
 	if doc.out_time:
 		early_exit_cutoff = get_datetime_combine(doc.attendance_date, settings.early_exit_cutoff)
 		if doc.out_time < early_exit_cutoff:
@@ -110,22 +120,3 @@ def apply_attendance_deduction_logic(doc, method):
 		doc.status = "Half Day"
 		doc.half_day_status = "Absent"
 		doc.leave_type = settings.half_day_leave_type
-
-
-def _time_diff_minutes(start_time, end_time):
-	"""
-	Minutes between two Time-field values (both HH:MM:SS strings/timedeltas).
-	Used to convert the Settings doctype's configured band-boundary Times into
-	minutes-since-shift-start, so the comparison against `minutes_late` works
-	regardless of what the actual shift start time is configured as.
-	"""
-	import datetime
-
-	def _to_seconds(t):
-		if isinstance(t, datetime.timedelta):
-			return t.total_seconds()
-		# Time fields sometimes arrive as strings "HH:MM:SS"
-		h, m, s = [int(x) for x in str(t).split(":")]
-		return h * 3600 + m * 60 + s
-
-	return (_to_seconds(end_time) - _to_seconds(start_time)) / 60

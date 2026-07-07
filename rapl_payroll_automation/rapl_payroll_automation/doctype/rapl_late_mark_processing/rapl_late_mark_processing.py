@@ -13,6 +13,15 @@ from rapl_payroll_automation.api.payroll_automation_utils import (
 	get_total_working_days,
 )
 
+# Fixed number of band-count columns on RAPL Late Mark Processing Entry
+# (band_1_count .. band_5_count). Matches the cap enforced in
+# RAPLPayrollAutomationSettings.validate_band_ordering() -- see that
+# doctype's controller for the reasoning (Frappe doctypes have a fixed
+# schema; this many columns are always present, unused ones hidden by
+# rapl_late_mark_processing.js at runtime based on how many bands actually
+# exist in Settings).
+MAX_BANDS = 5
+
 
 class RAPLLateMarkProcessing(Document):
 	def autoname(self):
@@ -22,6 +31,7 @@ class RAPLLateMarkProcessing(Document):
 			frappe.throw(_("Set Start Date before saving (required to generate the name)."))
 		base_name = getdate(self.start_date).strftime("%B %Y") + " - Late Mark"
 		self.name = append_number_if_name_exists("RAPL Late Mark Processing", base_name, separator="-")
+
 	def on_submit(self):
 		settings = get_automation_settings()
 		errors = []
@@ -42,6 +52,17 @@ class RAPLLateMarkProcessing(Document):
 				indicator="orange",
 				title=_("Late Mark Processing -- Notes"),
 			)
+
+
+@frappe.whitelist()
+def get_band_labels():
+	"""
+	Returns the configured band labels, in order, for the client script to
+	rename column 1..5's headers and hide any beyond the actual band count.
+	"""
+	settings = get_automation_settings()
+	bands = sorted(settings.late_mark_bands, key=lambda r: r.from_time)
+	return [b.label for b in bands]
 
 
 @frappe.whitelist()
@@ -82,12 +103,11 @@ def get_employees(docname, all_employees=False, employees=None):
 
 	# Preserve any existing rows (manual additions/edits, or a previous
 	# "Get Employees" run) -- only append rows for employees NOT already
-	# present. Previously this did `doc.entries = []` unconditionally,
-	# which silently destroyed manual entries every time any "Get
-	# Employees" button was clicked again. Fixed.
+	# present.
 	existing_employees = {row.employee for row in doc.entries}
 	errors = []
 	working_days = get_total_working_days(start_date, end_date)
+	bands = sorted(settings.late_mark_bands, key=lambda r: r.from_time)
 
 	for emp in employees:
 		if emp in existing_employees:
@@ -96,12 +116,13 @@ def get_employees(docname, all_employees=False, employees=None):
 			errors.append(f"{emp}: already processed for this period, excluded")
 			continue
 
-		result, err = _compute_employee_late_mark_details(emp, start_date, end_date, working_days)
+		result, err = _compute_employee_late_mark_details(emp, start_date, end_date, working_days, bands)
 		row = doc.append("entries", {})
 		row.employee = emp
 		if err:
 			errors.append(err)
-		row.late_fraction_total = result["late_fraction_total"]
+		for i, count in enumerate(result["band_counts"]):
+			setattr(row, f"band_{i + 1}_count", count)
 		row.per_day_rate = result["per_day_rate"]
 		row.amount = result["amount"]
 
@@ -113,35 +134,50 @@ def get_employees(docname, all_employees=False, employees=None):
 	return doc.name
 
 
-def _compute_employee_late_mark_details(employee, start_date, end_date, working_days):
-	"""Shared calculation, used both by bulk get_employees() and the
+def _compute_employee_late_mark_details(employee, start_date, end_date, working_days, bands):
+	"""
+	Shared calculation, used both by bulk get_employees() and the
 	single-employee get_employee_late_mark_details() (for rows added via the
-	native grid's own Add Row, not through Get Employees/manual select)."""
+	native grid's own Add Row).
+
+	Counts occurrences PER BAND (matching custom_late_mark_band -- the
+	Label stored on Attendance by attendance_automation.py -- against each
+	band's own Label), rather than summing a single fraction value. This is
+	what makes the per-band count columns possible; the old
+	custom_late_deduction_fraction field is no longer read here at all.
+	"""
 	monthly_salary = frappe.db.get_value("Employee", employee, "custom_monthly_salary")
 	if not monthly_salary:
 		return (
-			{"late_fraction_total": 0, "per_day_rate": 0, "amount": 0},
+			{"band_counts": [0] * MAX_BANDS, "per_day_rate": 0, "amount": 0},
 			f"{employee}: missing custom_monthly_salary, added with 0 (edit manually)",
 		)
 
-	total_fraction = frappe.db.sql(
-		"""
-		SELECT COALESCE(SUM(custom_late_deduction_fraction), 0)
-		FROM `tabAttendance`
-		WHERE employee = %(employee)s
-			AND attendance_date BETWEEN %(start)s AND %(end)s
-			AND docstatus = 1
-		""",
-		{"employee": employee, "start": start_date, "end": end_date},
-	)[0][0]
-	total_fraction = flt(total_fraction)
 	per_day_rate = flt(monthly_salary) / working_days
+
+	band_counts = []
+	amount = 0.0
+	for band in bands[:MAX_BANDS]:
+		count = frappe.db.count(
+			"Attendance",
+			filters={
+				"employee": employee,
+				"attendance_date": ["between", [start_date, end_date]],
+				"docstatus": 1,
+				"custom_late_mark_band": band.label,
+			},
+		)
+		band_counts.append(count)
+		amount += count * flt(band.fraction) * per_day_rate
+
+	# Pad to MAX_BANDS with 0 if fewer bands are configured than the column cap
+	band_counts += [0] * (MAX_BANDS - len(band_counts))
 
 	return (
 		{
-			"late_fraction_total": round(total_fraction, 4),
+			"band_counts": band_counts,
 			"per_day_rate": round(per_day_rate, 2),
-			"amount": round(total_fraction * per_day_rate, 2),
+			"amount": round(amount, 2),
 		},
 		None,
 	)
@@ -150,16 +186,18 @@ def _compute_employee_late_mark_details(employee, start_date, end_date, working_
 @frappe.whitelist()
 def get_employee_late_mark_details(docname, employee):
 	"""
-	Computes Fraction Total/Per-Day Rate/Amount for ONE employee, used by the
-	child table's own client script when a row is added via the native
-	grid's own "Add Row" -- without this, such a row had Employee set but
-	nothing else auto-populated.
+	Computes band counts/Per-Day Rate/Amount for ONE employee, used by the
+	parent's own client script when a row is added via the native grid's
+	own "Add Row" -- without this, such a row had Employee set but nothing
+	else auto-populated.
 	"""
 	doc = frappe.get_doc("RAPL Late Mark Processing", docname)
+	settings = get_automation_settings()
 	working_days = get_total_working_days(doc.start_date, doc.end_date)
-	result, err = _compute_employee_late_mark_details(employee, doc.start_date, doc.end_date, working_days)
+	bands = sorted(settings.late_mark_bands, key=lambda r: r.from_time)
+	result, err = _compute_employee_late_mark_details(employee, doc.start_date, doc.end_date, working_days, bands)
 	return {
-		"late_fraction_total": result["late_fraction_total"],
+		"band_counts": result["band_counts"],
 		"per_day_rate": result["per_day_rate"],
 		"amount": result["amount"],
 		"errors": [err] if err else [],

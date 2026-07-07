@@ -24,6 +24,24 @@ def get_datetime_combine(date, time_value):
 	return get_datetime(f"{getdate(date)} {time_value}")
 
 
+def time_to_seconds(time_value):
+	"""
+	Converts a Time-field value (datetime.time, datetime.timedelta, or
+	'HH:MM:SS' string -- Frappe Time fields can arrive as any of these
+	depending on context) into seconds-since-midnight, for direct numeric
+	comparison. Used by the Late Mark band-matching logic to compare a
+	check-in's time-of-day against each configured band's From/To Time.
+	"""
+	import datetime
+
+	if isinstance(time_value, datetime.timedelta):
+		return time_value.total_seconds()
+	if isinstance(time_value, datetime.time):
+		return time_value.hour * 3600 + time_value.minute * 60 + time_value.second
+	h, m, s = [int(x) for x in str(time_value).split(":")]
+	return h * 3600 + m * 60 + s
+
+
 def get_all_holiday_dates(holiday_list, start_date, end_date):
 	"""Sunday + named holidays combined -- everything in the Holiday List for this range."""
 	if not holiday_list:

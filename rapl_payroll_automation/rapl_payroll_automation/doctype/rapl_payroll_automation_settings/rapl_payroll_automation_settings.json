@@ -10,12 +10,7 @@
     "column_break_shift",
     "half_day_leave_type",
     "late_mark_section",
-    "late_mark_grace_until",
-    "late_mark_band1_until",
-    "late_mark_band1_fraction",
-    "column_break_latemark",
-    "late_mark_band2_until",
-    "late_mark_band2_fraction",
+    "late_mark_bands",
     "early_exit_section",
     "early_exit_cutoff",
     "overtime_section",
@@ -60,45 +55,11 @@
       "label": "Late Mark Bands"
     },
     {
-      "fieldname": "late_mark_grace_until",
-      "fieldtype": "Time",
-      "label": "Grace Until (no deduction)",
-      "default": "09:45:00",
-      "reqd": 1
-    },
-    {
-      "fieldname": "late_mark_band1_until",
-      "fieldtype": "Time",
-      "label": "Band 1 Until",
-      "default": "10:00:00",
-      "reqd": 1
-    },
-    {
-      "fieldname": "late_mark_band1_fraction",
-      "fieldtype": "Float",
-      "label": "Band 1 Fraction",
-      "default": "0.1667",
-      "precision": "4",
-      "reqd": 1
-    },
-    {
-      "fieldname": "column_break_latemark",
-      "fieldtype": "Column Break"
-    },
-    {
-      "fieldname": "late_mark_band2_until",
-      "fieldtype": "Time",
-      "label": "Band 2 Until (after this = Half Day)",
-      "default": "10:30:00",
-      "reqd": 1
-    },
-    {
-      "fieldname": "late_mark_band2_fraction",
-      "fieldtype": "Float",
-      "label": "Band 2 Fraction",
-      "default": "0.25",
-      "precision": "4",
-      "reqd": 1
+      "fieldname": "late_mark_bands",
+      "fieldtype": "Table",
+      "options": "RAPL Late Mark Band",
+      "label": "Late Mark Bands",
+      "description": "Add one row per time band, e.g. Label='9:46-10:00', From=09:46:00, To=10:00:00, Fraction=0.1667. Anything after the LATEST band's To Time triggers native Half Day instead of a fraction deduction. Maximum 5 bands (matches the fixed count columns on RAPL Late Mark Processing)."
     },
     {
       "fieldname": "early_exit_section",

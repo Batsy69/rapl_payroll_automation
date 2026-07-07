@@ -8,9 +8,13 @@
   "field_order": [
     "employee",
     "employee_name",
-    "late_fraction_total",
-    "per_day_rate",
+    "band_1_count",
+    "band_2_count",
+    "band_3_count",
+    "band_4_count",
+    "band_5_count",
     "column_break_amt",
+    "per_day_rate",
     "amount",
     "additional_salary"
   ],
@@ -32,30 +36,58 @@
       "in_list_view": 1
     },
     {
-      "fieldname": "late_fraction_total",
-      "fieldtype": "Float",
-      "label": "Fraction Total",
-      "precision": "4",
+      "fieldname": "band_1_count",
+      "fieldtype": "Int",
+      "label": "Band 1",
+      "default": "0",
       "in_list_view": 1,
-      "description": "Editable. Changing this recalculates Amount = Fraction Total \u00d7 Per-Day Rate automatically."
+      "description": "Count of occurrences in Late Mark Band #1 (as configured in RAPL Payroll Automation Settings). Column label is renamed at runtime to match that band's actual Label -- this generic name is only the underlying fieldname."
     },
     {
-      "fieldname": "per_day_rate",
-      "fieldtype": "Currency",
-      "label": "Per-Day Rate",
-      "in_list_view": 1,
-      "description": "Editable. Changing this recalculates Amount = Fraction Total \u00d7 Per-Day Rate automatically."
+      "fieldname": "band_2_count",
+      "fieldtype": "Int",
+      "label": "Band 2",
+      "default": "0",
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "band_3_count",
+      "fieldtype": "Int",
+      "label": "Band 3",
+      "default": "0",
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "band_4_count",
+      "fieldtype": "Int",
+      "label": "Band 4",
+      "default": "0",
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "band_5_count",
+      "fieldtype": "Int",
+      "label": "Band 5",
+      "default": "0",
+      "in_list_view": 1
     },
     {
       "fieldname": "column_break_amt",
       "fieldtype": "Column Break"
     },
     {
+      "fieldname": "per_day_rate",
+      "fieldtype": "Currency",
+      "label": "Per-Day Rate",
+      "in_list_view": 1,
+      "description": "Editable. Changing this recalculates Amount."
+    },
+    {
       "fieldname": "amount",
       "fieldtype": "Currency",
       "label": "Amount",
       "in_list_view": 1,
-      "description": "Auto-recalculated from Fraction Total \u00d7 Per-Day Rate whenever either changes. You can also edit Amount directly -- doing so does NOT change Fraction Total/Per-Day Rate back (one-way)."
+      "description": "Auto-recalculated as SUM(band count x that band's configured fraction) x Per-Day Rate, whenever any band count or Per-Day Rate changes. You can also edit Amount directly -- one-way, does not push a value back into the band counts."
     },
     {
       "fieldname": "additional_salary",

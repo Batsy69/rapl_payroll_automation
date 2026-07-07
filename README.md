@@ -61,8 +61,16 @@ adjust a rule.
    itself** -- Customize Form > Attendance:
    | Field | Type |
    |---|---|
-   | `custom_late_deduction_fraction` | Float |
+   | `custom_late_mark_band` | Data |
    | `custom_ot` (on **Employee**, not Attendance) | Check |
+
+   `custom_late_mark_band` stores the matched band's **Label** (from RAPL
+   Payroll Automation Settings' Late Mark Bands table), replacing the
+   earlier `custom_late_deduction_fraction` (a bare float) -- needed to
+   support per-band counting rather than a single summed fraction. If you
+   already created `custom_late_deduction_fraction`, leave it in place
+   (harmless, preserves historical data) -- it's simply no longer written
+   to or read from.
 
    `custom_ot` gates Overtime eligibility directly -- only employees with
    this ticked (and attendance in the period) are pulled in by "Get
@@ -93,7 +101,10 @@ adjust a rule.
    Automation Settings):
    - Reference Shift Type
    - Half Day Leave Type (the dedicated one from step 3)
-   - Late Mark band times/fractions (defaults match RAPL's locked design)
+   - Late Mark Bands table (add one row per band: Label, From Time, To Time,
+     Fraction -- max 5, matches the fixed count columns on RAPL Late Mark
+     Processing; unused columns beyond however many bands you define are
+     auto-hidden)
    - Early Exit cutoff
    - OT minimum minutes, hours divisor, rate base fieldname
    - Overtime / Late Mark Salary Component names
@@ -128,6 +139,7 @@ rapl_payroll_automation/
 ├── doctype/
 │   ├── rapl_payroll_automation_settings/   (Single -- all configurable rules)
 │   ├── rapl_grade_ot_denominator_rule/     (child table -- Grade -> denominator rule)
+│   ├── rapl_late_mark_band/                (child table -- configurable Late Mark time bands)
 │   ├── rapl_overtime_processing/           (submittable -- Overtime review & processing)
 │   ├── rapl_overtime_processing_entry/     (child table -- editable OT rows)
 │   ├── rapl_late_mark_processing/          (submittable -- Late Mark review & processing)

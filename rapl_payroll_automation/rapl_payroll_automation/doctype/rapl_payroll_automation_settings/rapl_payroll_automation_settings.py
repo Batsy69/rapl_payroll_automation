@@ -51,10 +51,36 @@ class RAPLPayrollAutomationSettings(Document):
 			seen.add(row.grade)
 
 	def validate_band_ordering(self):
-		"""Sanity check: grace < band1 < band2, so the bands are logically ordered."""
-		if not (self.late_mark_grace_until < self.late_mark_band1_until < self.late_mark_band2_until):
+		"""
+		Replaces the old hardcoded grace/band1/band2 check now that bands are
+		a flexible table. Enforces:
+		- max 5 bands (matches the fixed count columns on RAPL Late Mark
+		  Processing -- see rapl_late_mark_processing_entry.json)
+		- each band's From Time < To Time
+		- bands don't overlap each other (a given check-in time must match
+		  at most one band, or the attendance script's classification would
+		  be ambiguous/order-dependent)
+		"""
+		if len(self.late_mark_bands) > 5:
 			frappe.throw(
 				_(
-					"Late Mark bands must be in increasing order: Grace Until < Band 1 Until < Band 2 Until."
-				)
+					"Maximum 5 Late Mark Bands supported (RAPL Late Mark Processing has 5 "
+					"fixed count columns). You have {0}."
+				).format(len(self.late_mark_bands))
 			)
+
+		sorted_bands = sorted(self.late_mark_bands, key=lambda r: r.from_time)
+		for i, row in enumerate(sorted_bands):
+			if row.from_time >= row.to_time:
+				frappe.throw(
+					_("Band '{0}': From Time must be before To Time.").format(row.label)
+				)
+			if i > 0:
+				prev = sorted_bands[i - 1]
+				if row.from_time <= prev.to_time:
+					frappe.throw(
+						_(
+							"Bands '{0}' and '{1}' overlap. A check-in time must fall into "
+							"at most one band -- adjust the From/To times so they don't overlap."
+						).format(prev.label, row.label)
+					)
