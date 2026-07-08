@@ -154,7 +154,14 @@ def _compute_employee_late_mark_details(employee, start_date, end_date, working_
 			f"{employee}: missing custom_monthly_salary, added with 0 (edit manually)",
 		)
 
-	per_day_rate = flt(monthly_salary) / working_days
+	# Round FIRST, then use the rounded rate consistently in the amount
+	# calculation too. Fixes a real, confirmed discrepancy: computing amount
+	# from the full-precision rate but only rounding for display meant the
+	# displayed per_day_rate and the actual math didn't agree -- anyone
+	# manually verifying (multiplying displayed rate x displayed counts)
+	# would get a different, "wrong-looking" number by a paisa or so,
+	# purely from rounding order, not any real error in the underlying math.
+	per_day_rate = round(flt(monthly_salary) / working_days, 2)
 
 	band_counts = []
 	amount = 0.0
@@ -177,7 +184,7 @@ def _compute_employee_late_mark_details(employee, start_date, end_date, working_
 	return (
 		{
 			"band_counts": band_counts,
-			"per_day_rate": round(per_day_rate, 2),
+			"per_day_rate": per_day_rate,
 			"amount": round(amount, 2),
 		},
 		None,
