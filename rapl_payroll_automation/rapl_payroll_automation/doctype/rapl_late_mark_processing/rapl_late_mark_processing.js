@@ -181,6 +181,6 @@ function recalculate_late_mark_amount(frm, cdt, cdn) {
 		const fraction = fractions[i] || 0;
 		total_fraction += count * fraction;
 	}
-	row.amount = total_fraction * flt(row.per_day_rate);
+	row.amount = Math.round(total_fraction * flt(row.per_day_rate));
 	frm.refresh_field("entries");
 }

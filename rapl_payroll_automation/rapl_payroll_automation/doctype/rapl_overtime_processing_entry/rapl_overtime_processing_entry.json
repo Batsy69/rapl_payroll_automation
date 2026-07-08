@@ -44,8 +44,9 @@
       "fieldname": "ot_hours",
       "fieldtype": "Float",
       "label": "OT Hours",
+      "precision": "6",
       "in_list_view": 1,
-      "description": "Editable. Changing this recalculates Amount = OT Hours \u00d7 Rate/hr automatically."
+      "description": "Editable. NOT rounded -- kept exact, derived precisely from Attendance check-in/checkout. Changing this recalculates Amount = OT Hours \u00d7 Rate/hr automatically."
     },
     {
       "fieldname": "ot_rate",
@@ -62,8 +63,9 @@
       "fieldname": "amount",
       "fieldtype": "Currency",
       "label": "Amount",
+      "precision": "0",
       "in_list_view": 1,
-      "description": "Auto-recalculated from OT Hours \u00d7 Rate/hr whenever either changes. You can also edit Amount directly -- doing so does NOT change OT Hours/Rate back (one-way: hours/rate drive Amount, not the reverse)."
+      "description": "Whole rupees. Auto-recalculated from OT Hours \u00d7 Rate/hr whenever either changes. You can also edit Amount directly -- doing so does NOT change OT Hours/Rate back (one-way: hours/rate drive Amount, not the reverse)."
     },
     {
       "fieldname": "additional_salary",

@@ -87,8 +87,9 @@
       "fieldname": "amount",
       "fieldtype": "Currency",
       "label": "Amount",
+      "precision": "0",
       "in_list_view": 1,
-      "description": "Auto-recalculated as SUM(band count x that band's configured fraction) x Per-Day Rate, whenever any band count or Per-Day Rate changes. You can also edit Amount directly -- one-way, does not push a value back into the band counts."
+      "description": "Whole rupees. Auto-recalculated as SUM(band count x that band's configured fraction) x Per-Day Rate, whenever any band count or Per-Day Rate changes. You can also edit Amount directly -- one-way, does not push a value back into the band counts."
     },
     {
       "fieldname": "additional_salary",

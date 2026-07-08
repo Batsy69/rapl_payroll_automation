@@ -226,20 +226,17 @@ def _compute_employee_overtime(emp, start_date, end_date, settings, errors):
 		except Exception as day_err:
 			errors.append(f"{emp} / {day.attendance_date}: {day_err} -- day skipped")
 
-	total_ot_hours = round(total_ot_hours, 2)
-	# hourly_rate is already rounded above (before use in this loop, per
-	# the earlier fix's principle) -- no second rounding needed here.
-
-	# Round FIRST, then compute amount from the already-rounded hours/rate --
-	# same fix as the identical bug found and fixed in
-	# rapl_late_mark_processing.py's _compute_employee_late_mark_details().
-	# Previously ot_amount was computed from full-precision total_ot_hours x
-	# hourly_rate, but the DISPLAYED ot_hours/ot_rate were separately rounded
-	# -- so multiplying the two displayed numbers by hand didn't reproduce
-	# the displayed Amount (a real, confirmed discrepancy, off by roughly a
-	# rupee depending on the numbers involved).
+	# total_ot_hours is deliberately NOT rounded -- per explicit design
+	# decision: OT hours must be exact, derived precisely from Attendance
+	# in_time/out_time, with no rounding at any point. hourly_rate is
+	# already rounded above (before use in this loop, per the earlier
+	# fix's principle) -- kept at 2 decimals rather than a whole number,
+	# specifically BECAUSE hours stay exact: rounding Rate/hr too would
+	# introduce a second distortion that gets multiplied by however many
+	# hours someone worked, rather than absorbing all precision loss in
+	# one place (the final whole-rupee Amount, below).
 	return {
 		"ot_hours": total_ot_hours,
 		"ot_rate": hourly_rate,
-		"ot_amount": round(total_ot_hours * hourly_rate, 2),
+		"ot_amount": round(total_ot_hours * hourly_rate),
 	}

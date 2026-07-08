@@ -120,6 +120,8 @@ frappe.ui.form.on("RAPL Overtime Processing Entry", {
 
 function recalculate_ot_amount(frm, cdt, cdn) {
 	const row = locals[cdt][cdn];
-	row.amount = flt(row.ot_hours) * flt(row.ot_rate);
+	// Hours stay exact (never rounded, per design) -- only the final
+	// Amount rounds, to whole rupees, matching the server-side calculation.
+	row.amount = Math.round(flt(row.ot_hours) * flt(row.ot_rate));
 	frm.refresh_field("entries");
 }

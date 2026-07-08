@@ -187,7 +187,7 @@ def _compute_employee_late_mark_details(employee, start_date, end_date, working_
 		{
 			"band_counts": band_counts,
 			"per_day_rate": per_day_rate,
-			"amount": round(amount, 2),
+			"amount": round(amount),
 		},
 		None,
 	)
