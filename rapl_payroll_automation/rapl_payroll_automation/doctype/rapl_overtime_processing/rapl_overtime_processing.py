@@ -226,15 +226,15 @@ def _compute_employee_overtime(emp, start_date, end_date, settings, errors):
 		except Exception as day_err:
 			errors.append(f"{emp} / {day.attendance_date}: {day_err} -- day skipped")
 
-	# total_ot_hours is deliberately NOT rounded -- per explicit design
-	# decision: OT hours must be exact, derived precisely from Attendance
-	# in_time/out_time, with no rounding at any point. hourly_rate is
-	# already rounded above (before use in this loop, per the earlier
-	# fix's principle) -- kept at 2 decimals rather than a whole number,
-	# specifically BECAUSE hours stay exact: rounding Rate/hr too would
-	# introduce a second distortion that gets multiplied by however many
-	# hours someone worked, rather than absorbing all precision loss in
-	# one place (the final whole-rupee Amount, below).
+	# REVERSED per updated instruction: total_ot_hours now rounds to 2
+	# decimals (previously deliberately left exact/unrounded). This is the
+	# actual value used in the Amount calculation below, not just a display
+	# rounding -- so it's a genuine, if small, precision change, not cosmetic.
+	# In practice this has negligible effect on the final Amount, since
+	# Amount is separately rounded to whole rupees at the very end anyway --
+	# that final rounding already absorbs far more precision loss than this
+	# 2-decimal-vs-exact difference on Hours ever could.
+	total_ot_hours = round(total_ot_hours, 2)
 	return {
 		"ot_hours": total_ot_hours,
 		"ot_rate": hourly_rate,

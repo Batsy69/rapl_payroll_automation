@@ -44,9 +44,9 @@
       "fieldname": "ot_hours",
       "fieldtype": "Float",
       "label": "OT Hours",
-      "precision": "6",
+      "precision": "2",
       "in_list_view": 1,
-      "description": "Editable. NOT rounded -- kept exact, derived precisely from Attendance check-in/checkout. Changing this recalculates Amount = OT Hours \u00d7 Rate/hr automatically."
+      "description": "Editable. Rounded to 2 decimals. Changing this recalculates Amount = OT Hours x Rate/hr automatically."
     },
     {
       "fieldname": "ot_rate",
