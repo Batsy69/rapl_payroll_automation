@@ -11,6 +11,7 @@ from rapl_payroll_automation.api.payroll_automation_utils import (
 	create_and_submit_additional_salary,
 	get_automation_settings,
 	get_total_working_days,
+	time_to_seconds,
 )
 
 # Fixed number of band-count columns on RAPL Late Mark Processing Entry
@@ -61,7 +62,7 @@ def get_band_labels():
 	rename column 1..5's headers and hide any beyond the actual band count.
 	"""
 	settings = get_automation_settings()
-	bands = sorted(settings.late_mark_bands, key=lambda r: r.from_time)
+	bands = sorted(settings.late_mark_bands, key=lambda r: time_to_seconds(r.from_time))
 	return [b.label for b in bands]
 
 
@@ -107,7 +108,7 @@ def get_employees(docname, all_employees=False, employees=None):
 	existing_employees = {row.employee for row in doc.entries}
 	errors = []
 	working_days = get_total_working_days(start_date, end_date)
-	bands = sorted(settings.late_mark_bands, key=lambda r: r.from_time)
+	bands = sorted(settings.late_mark_bands, key=lambda r: time_to_seconds(r.from_time))
 
 	for emp in employees:
 		if emp in existing_employees:
@@ -194,7 +195,7 @@ def get_employee_late_mark_details(docname, employee):
 	doc = frappe.get_doc("RAPL Late Mark Processing", docname)
 	settings = get_automation_settings()
 	working_days = get_total_working_days(doc.start_date, doc.end_date)
-	bands = sorted(settings.late_mark_bands, key=lambda r: r.from_time)
+	bands = sorted(settings.late_mark_bands, key=lambda r: time_to_seconds(r.from_time))
 	result, err = _compute_employee_late_mark_details(employee, doc.start_date, doc.end_date, working_days, bands)
 	return {
 		"band_counts": result["band_counts"],

@@ -5,6 +5,8 @@ import frappe
 from frappe import _
 from frappe.model.document import Document
 
+from rapl_payroll_automation.api.payroll_automation_utils import time_to_seconds
+
 
 class RAPLPayrollAutomationSettings(Document):
 	def validate(self):
@@ -60,6 +62,16 @@ class RAPLPayrollAutomationSettings(Document):
 		- bands don't overlap each other (a given check-in time must match
 		  at most one band, or the attendance script's classification would
 		  be ambiguous/order-dependent)
+
+		Uses time_to_seconds() (the same helper already proven correct in
+		attendance_automation.py) rather than raw Python >=/<= on the raw
+		Time field values directly. Confirmed necessary: on a freshly-added,
+		not-yet-saved child row, Frappe Time field values can arrive in a
+		type/format that doesn't compare correctly with raw operators (the
+		same underlying class of issue as the confirmed 'str' vs
+		'datetime.datetime' TypeError on Attendance.in_time) -- converting
+		both sides to seconds-since-midnight sidesteps this entirely,
+		regardless of what raw type/format the value happens to be in.
 		"""
 		if len(self.late_mark_bands) > 5:
 			frappe.throw(
@@ -69,15 +81,17 @@ class RAPLPayrollAutomationSettings(Document):
 				).format(len(self.late_mark_bands))
 			)
 
-		sorted_bands = sorted(self.late_mark_bands, key=lambda r: r.from_time)
+		sorted_bands = sorted(self.late_mark_bands, key=lambda r: time_to_seconds(r.from_time))
 		for i, row in enumerate(sorted_bands):
-			if row.from_time >= row.to_time:
+			from_s = time_to_seconds(row.from_time)
+			to_s = time_to_seconds(row.to_time)
+			if from_s >= to_s:
 				frappe.throw(
 					_("Band '{0}': From Time must be before To Time.").format(row.label)
 				)
 			if i > 0:
 				prev = sorted_bands[i - 1]
-				if row.from_time <= prev.to_time:
+				if from_s <= time_to_seconds(prev.to_time):
 					frappe.throw(
 						_(
 							"Bands '{0}' and '{1}' overlap. A check-in time must fall into "

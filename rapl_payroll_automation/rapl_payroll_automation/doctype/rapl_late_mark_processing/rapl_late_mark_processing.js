@@ -114,11 +114,20 @@ function fetch_band_fractions(frm, labels) {
 	// separately via the Settings doctype directly for the recalculation
 	// trigger's own use.
 	frappe.db.get_doc("RAPL Payroll Automation Settings", "RAPL Payroll Automation Settings").then((settings) => {
-		const bands = (settings.late_mark_bands || []).sort((a, b) =>
-			a.from_time < b.from_time ? -1 : 1
+		const bands = (settings.late_mark_bands || []).sort(
+			(a, b) => time_str_to_seconds(a.from_time) - time_str_to_seconds(b.from_time)
 		);
 		frm.__late_mark_band_fractions = bands.map((b) => flt(b.fraction));
 	});
+}
+
+// Numeric seconds-since-midnight, not raw string comparison -- a plain
+// string sort would incorrectly order "9:46:00" AFTER "10:00:00" if
+// Frappe ever returns an unpadded hour (comparing '9' > '1' as characters).
+function time_str_to_seconds(t) {
+	if (!t) return 0;
+	const parts = String(t).split(":").map(Number);
+	return (parts[0] || 0) * 3600 + (parts[1] || 0) * 60 + (parts[2] || 0);
 }
 
 // --- Child table (RAPL Late Mark Processing Entry) row-level triggers ---
