@@ -195,7 +195,14 @@ def _compute_employee_overtime(emp, start_date, end_date, settings, errors):
 		errors.append(f"{emp}: computed OT working days <= 0, added with 0 (edit manually)")
 		return None
 
-	hourly_rate = flt(monthly_salary) / ot_working_days / flt(settings.ot_hours_divisor)
+	# Per explicit design decision: round the PER-DAY amount to whole rupees
+	# (0 decimals) FIRST -- this is the "per day salary" reference point.
+	# hourly_rate is then derived from that whole-rupee figure and rounded
+	# to 2 decimals for display/use (keeping the earlier fix's principle:
+	# whatever's shown in Rate/hr must be the exact value used in the
+	# Amount calculation, or the manual-vs-automatic mismatch bug returns).
+	per_day_amount = round(flt(monthly_salary) / ot_working_days)
+	hourly_rate = round(per_day_amount / flt(settings.ot_hours_divisor), 2)
 	shift = frappe.get_cached_doc("Shift Type", settings.reference_shift_type)
 
 	total_ot_hours = 0.0
@@ -220,7 +227,8 @@ def _compute_employee_overtime(emp, start_date, end_date, settings, errors):
 			errors.append(f"{emp} / {day.attendance_date}: {day_err} -- day skipped")
 
 	total_ot_hours = round(total_ot_hours, 2)
-	hourly_rate = round(hourly_rate, 2)
+	# hourly_rate is already rounded above (before use in this loop, per
+	# the earlier fix's principle) -- no second rounding needed here.
 
 	# Round FIRST, then compute amount from the already-rounded hours/rate --
 	# same fix as the identical bug found and fixed in

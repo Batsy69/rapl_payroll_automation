@@ -79,8 +79,9 @@
       "fieldname": "per_day_rate",
       "fieldtype": "Currency",
       "label": "Per-Day Rate",
+      "precision": "0",
       "in_list_view": 1,
-      "description": "Editable. Changing this recalculates Amount."
+      "description": "Editable. Whole rupees (no decimals) -- only the final Amount carries paisa-level precision. Changing this recalculates Amount."
     },
     {
       "fieldname": "amount",

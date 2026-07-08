@@ -159,9 +159,11 @@ def _compute_employee_late_mark_details(employee, start_date, end_date, working_
 	# from the full-precision rate but only rounding for display meant the
 	# displayed per_day_rate and the actual math didn't agree -- anyone
 	# manually verifying (multiplying displayed rate x displayed counts)
-	# would get a different, "wrong-looking" number by a paisa or so,
-	# purely from rounding order, not any real error in the underlying math.
-	per_day_rate = round(flt(monthly_salary) / working_days, 2)
+	# would get a different, "wrong-looking" number.
+	# Rounded to WHOLE RUPEES (0 decimals), not 2 -- per explicit design
+	# decision: per-day rate is a round-number reference point; only the
+	# final Amount carries paisa-level currency precision.
+	per_day_rate = round(flt(monthly_salary) / working_days)
 
 	band_counts = []
 	amount = 0.0
