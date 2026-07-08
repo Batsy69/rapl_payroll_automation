@@ -102,6 +102,7 @@ frappe.ui.form.on("RAPL Overtime Processing Entry", {
 			callback: (r) => {
 				if (!r.message) return;
 				frappe.model.set_value(cdt, cdn, "ot_hours", r.message.ot_hours);
+				frappe.model.set_value(cdt, cdn, "ot_hours_hhmm", r.message.ot_hours_seconds);
 				frappe.model.set_value(cdt, cdn, "ot_rate", r.message.ot_rate);
 				frappe.model.set_value(cdt, cdn, "amount", r.message.ot_amount);
 				if (r.message.errors && r.message.errors.length) {
@@ -110,7 +111,16 @@ frappe.ui.form.on("RAPL Overtime Processing Entry", {
 			},
 		});
 	},
-	ot_hours(frm, cdt, cdn) {
+	ot_hours_hhmm(frm, cdt, cdn) {
+		// ot_hours_hhmm (Duration field) stores its value as TOTAL SECONDS.
+		// User-facing edits happen here now (ot_hours itself is read-only) --
+		// derive decimal hours from the seconds value, write it into ot_hours
+		// (still possible programmatically even though the field is
+		// read-only in the UI -- read_only only blocks user input, not
+		// frappe.model.set_value), then recalculate Amount as before.
+		const row = locals[cdt][cdn];
+		const decimal_hours = flt(flt(row.ot_hours_hhmm / 3600).toFixed(2));
+		frappe.model.set_value(cdt, cdn, "ot_hours", decimal_hours);
 		recalculate_ot_amount(frm, cdt, cdn);
 	},
 	ot_rate(frm, cdt, cdn) {
@@ -120,8 +130,6 @@ frappe.ui.form.on("RAPL Overtime Processing Entry", {
 
 function recalculate_ot_amount(frm, cdt, cdn) {
 	const row = locals[cdt][cdn];
-	// Hours stay exact (never rounded, per design) -- only the final
-	// Amount rounds, to whole rupees, matching the server-side calculation.
 	row.amount = Math.round(flt(row.ot_hours) * flt(row.ot_rate));
 	frm.refresh_field("entries");
 }

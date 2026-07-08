@@ -82,9 +82,10 @@ def get_employee_ot_details(docname, employee):
 	errors = []
 	result = _compute_employee_overtime(employee, doc.start_date, doc.end_date, settings, errors)
 	if not result:
-		return {"ot_hours": 0, "ot_rate": 0, "ot_amount": 0, "errors": errors}
+		return {"ot_hours": 0, "ot_hours_seconds": 0, "ot_rate": 0, "ot_amount": 0, "errors": errors}
 	return {
 		"ot_hours": result["ot_hours"],
+		"ot_hours_seconds": result["ot_hours_seconds"],
 		"ot_rate": result["ot_rate"],
 		"ot_amount": result["ot_amount"],
 		"errors": errors,
@@ -153,10 +154,12 @@ def get_employees(docname, all_employees=False, employees=None):
 		row.employee = emp
 		if result:
 			row.ot_hours = result["ot_hours"]
+			row.ot_hours_hhmm = result["ot_hours_seconds"]
 			row.ot_rate = result["ot_rate"]
 			row.amount = result["ot_amount"]
 		else:
 			row.ot_hours = 0
+			row.ot_hours_hhmm = 0
 			row.ot_rate = 0
 			row.amount = 0
 
@@ -237,6 +240,7 @@ def _compute_employee_overtime(emp, start_date, end_date, settings, errors):
 	total_ot_hours = round(total_ot_hours, 2)
 	return {
 		"ot_hours": total_ot_hours,
+		"ot_hours_seconds": round(total_ot_hours * 3600),  # for the Duration field (OT Hours HH:MM)
 		"ot_rate": hourly_rate,
 		"ot_amount": round(total_ot_hours * hourly_rate),
 	}

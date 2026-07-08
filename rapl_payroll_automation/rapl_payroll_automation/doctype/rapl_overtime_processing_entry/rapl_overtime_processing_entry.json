@@ -9,6 +9,7 @@
     "employee",
     "employee_name",
     "grade",
+    "ot_hours_hhmm",
     "ot_hours",
     "ot_rate",
     "column_break_amt",
@@ -41,12 +42,22 @@
       "in_list_view": 1
     },
     {
+      "fieldname": "ot_hours_hhmm",
+      "fieldtype": "Duration",
+      "label": "OT Hours (HH:MM)",
+      "hide_days": 1,
+      "hide_seconds": 1,
+      "in_list_view": 1,
+      "description": "Editable. Enter hours and minutes directly -- this drives OT Hours (decimal) and Amount automatically."
+    },
+    {
       "fieldname": "ot_hours",
       "fieldtype": "Float",
       "label": "OT Hours",
       "precision": "2",
       "in_list_view": 1,
-      "description": "Editable. Rounded to 2 decimals. Changing this recalculates Amount = OT Hours x Rate/hr automatically."
+      "description": "Read-only, decimal hours -- derived automatically from OT Hours (HH:MM). Used internally for the Amount calculation.",
+      "read_only": 1
     },
     {
       "fieldname": "ot_rate",
