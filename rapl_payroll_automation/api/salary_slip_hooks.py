@@ -35,6 +35,8 @@
 #   PT:  every band's income test uses (B+HRA+custom_conveyance_for_deductions+custom_overtime_for_pt)
 #   ESI: (B+HRA+custom_conveyance_for_deductions+custom_overtime_for_pt)*0.0075
 
+import frappe
+
 from rapl_payroll_automation.api.payroll_automation_utils import (
 	get_additional_salary_total,
 	get_automation_settings,
@@ -52,4 +54,15 @@ def set_precomputed_fields(doc, method):
 	)
 	doc.custom_conveyance_for_deductions = get_additional_salary_total(
 		doc.employee, "Conveyance", doc.start_date, doc.end_date
+	)
+
+	# TEMPORARY DIAGNOSTIC -- remove once the NameError regression (post
+	# today's HRMS update) is confirmed fixed. Proves whether this hook
+	# actually fires and what it set, rather than guessing further.
+	frappe.msgprint(
+		f"[DIAGNOSTIC] before_validate ran. "
+		f"custom_overtime_for_pt={doc.custom_overtime_for_pt}, "
+		f"custom_conveyance_for_deductions={doc.custom_conveyance_for_deductions}",
+		alert=True,
+		indicator="blue",
 	)
