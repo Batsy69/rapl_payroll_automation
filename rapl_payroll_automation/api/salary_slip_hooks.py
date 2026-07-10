@@ -63,6 +63,6 @@ def set_precomputed_fields(doc, method):
 		f"[DIAGNOSTIC] before_validate ran. "
 		f"custom_overtime_for_pt={doc.custom_overtime_for_pt}, "
 		f"custom_conveyance_for_deductions={doc.custom_conveyance_for_deductions}",
-		alert=True,
+		title="Diagnostic (temporary)",
 		indicator="blue",
 	)
