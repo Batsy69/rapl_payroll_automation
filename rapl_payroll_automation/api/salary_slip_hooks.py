@@ -1,41 +1,63 @@
 # Copyright (c) 2026, RAPL and contributors
 #
-# Salary Slip `before_validate` hook.
-#
-# Registered in hooks.py as:
+# Salary Slip hooks: two, registered as:
 #   doc_events = {
 #       "Salary Slip": {
-#           "before_validate": "rapl_payroll_automation.api.salary_slip_hooks.set_precomputed_fields"
+#           "before_validate": "rapl_payroll_automation.api.salary_slip_hooks.set_precomputed_fields",
+#           "validate": "rapl_payroll_automation.api.salary_slip_hooks.correct_statutory_deductions",
 #       }
 #   }
 #
-# WHY before_validate and not validate: verified against frappe/model/document.py
-# -- run_before_save_methods() calls run_method("before_validate") as its own
-# separate step, strictly BEFORE run_method("validate"). Salary Slip's own
-# validate() is what calls calculate_net_pay() (all formula evaluation,
-# including PF/PT/ESI). A plain `validate` doc_event would fire AFTER formulas
-# already ran with stale/zero data -- confirmed via Document.hook()'s
-# compose(): the doctype's own method (fn) runs first, doc_events hooks run
-# after. before_validate is the only checkpoint early enough to matter.
-# Salary Slip has no existing before_validate() of its own (confirmed: no
-# `def before_validate` in salary_slip.py) -- no collision risk.
+# ARCHITECTURE CHANGE (post a same-day HRMS update) -- see git history / commit
+# messages for the full investigation. Confirmed via a real production
+# traceback: HRMS now evaluates every Salary Structure formula EARLIER than
+# before, inside Salary Structure Assignment's own
+# _evaluate_component_table() (salary_structure_assignment.py), using a data
+# context built ONLY from Employee + Salary Structure Assignment fields --
+# it never sees the Salary Slip at all. The previous design (set a custom
+# field on the Salary Slip via before_validate, reference it directly in the
+# PF/PT/ESI formula text) is no longer viable: that formula-evaluation
+# environment has no way to ever see anything set on the Salary Slip,
+# regardless of hook timing.
 #
-# WHY this is needed at all: PF, PT, and ESI formulas reference Conveyance and
-# Overtime amounts, but both arrive via Additional Salary, which merges onto
-# the slip AFTER deduction formulas evaluate (add_structure_components runs
-# before add_additional_salary_components -- verified in salary_slip.py).
-# Without this fix, PF/PT/ESI always compute as if Conveyance=0 and OT=0.
+# NEW APPROACH: let PF/PT/ESI's Salary Component formulas revert to
+# referencing only B/HRA (safe everywhere, crashes nowhere, since it
+# references nothing outside what's natively available in every evaluation
+# context). Then, AFTER Salary Slip's own validate()/calculate_net_pay() has
+# already run (a plain `validate` doc_event, confirmed via
+# frappe/model/document.py's Document.hook()/compose(): the doctype's own
+# method runs first, doc_events hooks run after), directly RECOMPUTE the
+# correct PF/PT/ESI amounts in plain Python and overwrite those rows'
+# `amount` field on the actual Salary Slip -- bypassing the formula sandbox
+# entirely, so none of this depends on HRMS's internal evaluation-context
+# implementation ever again.
 #
-# Custom fields this populates (must exist on Salary Slip):
-#   custom_overtime_for_pt          (Currency)
-#   custom_conveyance_for_deductions (Currency)
+# custom_overtime_for_pt / custom_conveyance_for_deductions (Currency fields
+# on Salary Slip) are still populated by before_validate, purely for
+# visibility/audit on the slip -- they are no longer referenced by any
+# formula, only by this module's own Python logic below.
 #
-# Formulas that must reference these fields (not the dead OT/CON abbreviations):
-#   PF:  1800 if (B+custom_conveyance_for_deductions)>15000 else (B+custom_conveyance_for_deductions)*0.12
-#   PT:  every band's income test uses (B+HRA+custom_conveyance_for_deductions+custom_overtime_for_pt)
-#   ESI: (B+HRA+custom_conveyance_for_deductions+custom_overtime_for_pt)*0.0075
+# Corrected values, replicated in Python (must match RAPL_Component_
+# Reconciliation.md's locked formulas exactly):
+#   PF:  1800 if (B+CON)>15000 else (B+CON)*0.12         -- condition: custom_pf==1
+#   PT:  5-band gender/month logic on (B+HRA+CON+OT)      -- condition: custom_pt==1
+#   ESI: (B+HRA+CON+OT)*0.0075                            -- condition: custom_esi==1
+# where CON = custom_conveyance_for_deductions, OT = custom_overtime_for_pt,
+# B/HRA = this slip's own Basic/HRA earning row amounts. Component NAMES
+# ("PF"/"Professional Tax"/"ESI") are NOT hardcoded -- read from
+# RAPL Payroll Automation Settings (pf_salary_component/pt_salary_component/
+# esi_salary_component), same configurable pattern already used for Overtime/
+# Late Mark, to avoid a repeat of the exact-name-mismatch bugs hit earlier in
+# this build (e.g. the Attendance custom_late_deduction_fraction typo).
+#
+# set_net_pay() (called at the end here) safely resums gross_pay/
+# total_deduction/net_pay/rounded_total from CURRENT row amounts via
+# get_component_totals() -- verified this is a pure summation over existing
+# `.amount` values, NOT a re-trigger of formula evaluation, so it cannot
+# undo the correction just applied.
 
 import frappe
+from frappe.utils import flt, getdate
 
 from rapl_payroll_automation.api.payroll_automation_utils import (
 	get_additional_salary_total,
@@ -44,6 +66,8 @@ from rapl_payroll_automation.api.payroll_automation_utils import (
 
 
 def set_precomputed_fields(doc, method):
+	"""before_validate -- populates the two reference/audit fields on the slip.
+	No longer read by any formula (see module docstring); kept for visibility."""
 	if not doc.employee or not doc.start_date or not doc.end_date:
 		return
 
@@ -56,13 +80,77 @@ def set_precomputed_fields(doc, method):
 		doc.employee, "Conveyance", doc.start_date, doc.end_date
 	)
 
-	# TEMPORARY DIAGNOSTIC -- remove once the NameError regression (post
-	# today's HRMS update) is confirmed fixed. Proves whether this hook
-	# actually fires and what it set, rather than guessing further.
-	frappe.msgprint(
-		f"[DIAGNOSTIC] before_validate ran. "
-		f"custom_overtime_for_pt={doc.custom_overtime_for_pt}, "
-		f"custom_conveyance_for_deductions={doc.custom_conveyance_for_deductions}",
-		title="Diagnostic (temporary)",
-		indicator="blue",
+
+def correct_statutory_deductions(doc, method):
+	"""validate -- runs AFTER Salary Slip's own calculate_net_pay() has already
+	completed (confirmed hook-ordering, see module docstring). Overwrites
+	PF/PT/ESI row amounts directly with the correct Conveyance+Overtime-
+	inclusive figures, computed here in plain Python, then safely resums
+	totals via set_net_pay()."""
+	if not doc.employee or not doc.start_date:
+		return
+
+	basic = _get_earning_amount(doc, "Basic")
+	hra = _get_earning_amount(doc, "HRA")
+	conveyance = flt(doc.custom_conveyance_for_deductions)
+	overtime = flt(doc.custom_overtime_for_pt)
+
+	emp = frappe.db.get_value(
+		"Employee", doc.employee, ["gender", "custom_pf", "custom_pt", "custom_esi"], as_dict=True
 	)
+	if not emp:
+		return
+
+	settings = get_automation_settings()
+	changed = False
+
+	if emp.custom_pf:
+		pf_base = basic + conveyance
+		pf_amount = 1800 if pf_base > 15000 else pf_base * 0.12
+		changed = _set_deduction_amount(doc, settings.pf_salary_component, pf_amount) or changed
+
+	if emp.custom_pt:
+		pt_amount = _compute_pt(emp.gender, basic, hra, conveyance, overtime, doc.start_date)
+		changed = _set_deduction_amount(doc, settings.pt_salary_component, pt_amount) or changed
+
+	if emp.custom_esi:
+		esi_amount = (basic + hra + conveyance + overtime) * 0.0075
+		changed = _set_deduction_amount(doc, settings.esi_salary_component, esi_amount) or changed
+
+	if changed:
+		doc.set_net_pay()
+
+
+def _get_earning_amount(doc, component_name):
+	for row in doc.earnings:
+		if row.salary_component == component_name:
+			return flt(row.amount)
+	return 0.0
+
+
+def _set_deduction_amount(doc, component_name, amount):
+	"""Overwrites the matching deduction row's amount, rounded to whole rupees
+	(matches RAPL's confirmed 'Round to Nearest Integer' convention on these
+	three components). Returns True if a matching row was found and updated."""
+	amount = round(amount)
+	for row in doc.deductions:
+		if row.salary_component == component_name:
+			row.amount = amount
+			return True
+	return False
+
+
+def _compute_pt(gender, basic, hra, conveyance, overtime, start_date):
+	income = basic + hra + conveyance + overtime
+	month = getdate(start_date).month
+	if gender == "Male":
+		if income > 10000:
+			return 300 if month == 2 else 200
+		elif income > 7500:
+			return 175
+		return 0
+	elif gender == "Female":
+		if income > 25000:
+			return 300 if month == 2 else 200
+		return 0
+	return 0
